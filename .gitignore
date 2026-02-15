@@ -1,0 +1,24 @@
+# Build output
+build/
+
+# Unused CMSIS directories (regenerate via CubeMX if needed)
+Drivers/CMSIS/Core/
+Drivers/CMSIS/Core_A/
+Drivers/CMSIS/DAP/
+Drivers/CMSIS/DSP/
+Drivers/CMSIS/Documentation/
+Drivers/CMSIS/NN/
+Drivers/CMSIS/RTOS/
+Drivers/CMSIS/RTOS2/
+
+# Unused toolchain startup templates (you use gcc via startup_stm32f407xx.s in root)
+Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/arm/
+Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/iar/
+
+# IDE files
+.settings/
+Debug/
+Release/
+*.launch
+.cproject
+.project
