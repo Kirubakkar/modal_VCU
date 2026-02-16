@@ -123,8 +123,8 @@ static const float kfMotorControllerKp = 2.0f;
 
 /* Motor ratings */
 static const float kfMotorRatedCurrent = 70.0f;
-static const float kfMotorRatedPower = 800.0f;
-static const float kfMotorRatedSpeed = 800.0f;
+static const float kfMotorRatedPower = 1000.0f;
+static const float kfMotorRatedSpeed = 3000.0f;
 static const uint8_t kucMotorMagnetPairs = 10;
 static const float kfMotorGearRatio = 1.0f;
 

@@ -8,6 +8,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "steering.h"
 #include "canOpen.h"
+#include "canTx.h"
 #include "cmsis_os.h"
 #include "yzaim.h"
 #include <math.h>
@@ -155,8 +156,5 @@ void sendPosition(float angle) {
   txData[5] = (uint8_t)((position >> 16) & 0xFF);
   txData[6] = (uint8_t)((position >> 24) & 0xFF);
 
-  uint32_t txMailbox;
-  if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) > 0) {
-    HAL_CAN_AddTxMessage(&hcan1, &txHeader, txData, &txMailbox);
-  }
+  CAN_TransmitRetry(&hcan1, &txHeader, txData);
 }

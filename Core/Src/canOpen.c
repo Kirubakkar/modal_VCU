@@ -7,6 +7,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "canOpen.h"
+#include "canTx.h"
 #include "cmsis_os.h"
 #include <string.h>
 
@@ -114,12 +115,8 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
     /* Drain any stale semaphore tokens */
     while (osSemaphoreAcquire(sdoRxSemaphore, 0) == osOK) {}
 
-    /* Transmit */
-    uint32_t txMailbox;
-    if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0)
-      return SDO_ERR_TX_FAIL;
-
-    if (HAL_CAN_AddTxMessage(hcan, &txHeader, txPayload, &txMailbox) != HAL_OK)
+    /* Transmit with retry on mailbox full */
+    if (CAN_TransmitRetry(hcan, &txHeader, txPayload) != HAL_OK)
       return SDO_ERR_TX_FAIL;
 
     /* Wait for server confirmation (0x60) or abort (0x80) */
@@ -192,12 +189,8 @@ SDO_Status_t SDO_Read(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
     /* Drain any stale semaphore tokens */
     while (osSemaphoreAcquire(sdoRxSemaphore, 0) == osOK) {}
 
-    /* Transmit */
-    uint32_t txMailbox;
-    if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0)
-      return SDO_ERR_TX_FAIL;
-
-    if (HAL_CAN_AddTxMessage(hcan, &txHeader, txPayload, &txMailbox) != HAL_OK)
+    /* Transmit with retry on mailbox full */
+    if (CAN_TransmitRetry(hcan, &txHeader, txPayload) != HAL_OK)
       return SDO_ERR_TX_FAIL;
 
     /* Wait for response with timeout */

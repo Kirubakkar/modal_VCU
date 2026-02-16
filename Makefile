@@ -39,6 +39,7 @@ C_SOURCES =  \
 Core/Src/main.c \
 Core/Src/canOpen.c \
 Core/Src/canSignal.c \
+Core/Src/canTx.c \
 Core/Src/vcu.c \
 Core/Src/steering.c \
 Core/Src/asi.c \
