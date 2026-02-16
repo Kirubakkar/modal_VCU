@@ -46,7 +46,8 @@ void SDO_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc) {
  * @brief  Perform a CANopen SDO expedited write (download) to a remote node.
  */
 SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
-                       uint8_t subIndex, uint8_t dataLen, uint8_t *data) {
+                       uint8_t subIndex, uint8_t dataLen, float scalar,
+                       uint8_t *data) {
   /* --- Parameter validation --- */
   if (hcan == NULL || data == NULL)
     return SDO_ERR_PARAM;
@@ -76,6 +77,13 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
     return SDO_ERR_PARAM;
   }
 
+  /* --- Apply scalar to data --- */
+  int32_t rawValue = 0;
+  for (uint8_t i = 0; i < dataLen; i++) {
+    rawValue |= ((int32_t)data[i]) << (i * 8);
+  }
+  int32_t scaledValue = (int32_t)((float)rawValue * scalar);
+
   /* --- Build the 8-byte SDO TX payload --- */
   uint8_t txPayload[8] = {0};
   txPayload[0] = commandByte;
@@ -83,9 +91,9 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
   txPayload[2] = (uint8_t)((index >> 8) & 0xFF); /* Index high byte */
   txPayload[3] = subIndex;
 
-  /* Copy data into bytes 4-7 (little-endian, remaining bytes stay 0) */
+  /* Copy scaled data into bytes 4-7 (little-endian, remaining bytes stay 0) */
   for (uint8_t i = 0; i < dataLen; i++) {
-    txPayload[4 + i] = data[i];
+    txPayload[4 + i] = (uint8_t)((scaledValue >> (i * 8)) & 0xFF);
   }
 
   /* --- Configure CAN TX header --- */
@@ -146,7 +154,9 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
  *         Waits for server response on 0x580 + nodeId using a semaphore.
  */
 SDO_Status_t SDO_Read(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
-                      uint8_t subIndex, uint8_t dataLen, uint8_t *data) {
+                      uint8_t subIndex, uint8_t dataLen, float scalar,
+                      uint8_t *data) {
+  (void)scalar; /* scalar is unused for read — present for macro compatibility */
   /* --- Parameter validation --- */
   if (hcan == NULL || data == NULL)
     return SDO_ERR_PARAM;

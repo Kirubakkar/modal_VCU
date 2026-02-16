@@ -15,12 +15,11 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 
-#define kxObjModesOfOperation (uint16_t)0x6060, (uint8_t)0x00, (uint8_t)1
-#define kxObjControlWord (uint16_t)0x6040, (uint8_t)0x00, (uint8_t)1
-#define kxObjCommandDrive (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)1
-#define kxObjReadAlarm (uint16_t)0x260E, (uint8_t)0x00, (uint8_t)1
-#define kxObjPositionActualValue (uint16_t)0x6064, (uint8_t)0x00, (uint8_t)4
-#define kxObjCommandDrive (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)4
+#define kxObjModesOfOperation    (uint16_t)0x6060, (uint8_t)0x00, (uint8_t)1, (float)1
+#define kxObjControlWord         (uint16_t)0x6040, (uint8_t)0x00, (uint8_t)1, (float)1
+#define kxObjReadAlarm           (uint16_t)0x260E, (uint8_t)0x00, (uint8_t)1, (float)1
+#define kxObjPositionActualValue (uint16_t)0x6064, (uint8_t)0x00, (uint8_t)4, (float)1
+#define kxObjCommandDrive        (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)4, (float)1
 
 /* Drive mode constants ------------------------------------------------------*/
 static const uint8_t kucModeVelocity = 3;

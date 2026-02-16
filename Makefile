@@ -38,8 +38,10 @@ BUILD_DIR = build
 C_SOURCES =  \
 Core/Src/main.c \
 Core/Src/canOpen.c \
+Core/Src/canSignal.c \
 Core/Src/vcu.c \
 Core/Src/steering.c \
+Core/Src/asi.c \
 Core/Src/freertos.c \
 Core/Src/stm32f4xx_it.c \
 Core/Src/stm32f4xx_hal_msp.c \

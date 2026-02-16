@@ -513,6 +513,9 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
       /* Forward to CANopen SDO layer for response processing */
       SDO_ProcessRxMessage(rxHeader.StdId, rxData, rxHeader.DLC);
 
+      /* Forward to VCU for application-level message processing */
+      VCU_ProcessRxMessage(rxHeader.StdId, rxData, rxHeader.DLC);
+
       /* Test: capture ID 0x201 */
       if (rxHeader.StdId == TEST_CAN_RX_ID)
       {

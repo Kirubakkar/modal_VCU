@@ -78,9 +78,11 @@ void SDO_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc);
 
 /**
  * @brief  Perform a CANopen SDO expedited write (download) to a remote node.
+ * @param  scalar  Multiplication factor applied to data before sending
  */
 SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
-                       uint8_t subIndex, uint8_t dataLen, uint8_t *data);
+                       uint8_t subIndex, uint8_t dataLen, float scalar,
+                       uint8_t *data);
 
 /**
  * @brief  Perform a CANopen SDO expedited read (upload) from a remote node.
@@ -93,7 +95,8 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
  * @retval SDO_Status_t  SDO_OK on success, error code otherwise
  */
 SDO_Status_t SDO_Read(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
-                      uint8_t subIndex, uint8_t dataLen, uint8_t *data);
+                      uint8_t subIndex, uint8_t dataLen, float scalar,
+                      uint8_t *data);
 
 #ifdef __cplusplus
 }

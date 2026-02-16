@@ -57,7 +57,7 @@ int initSteering(void) {
 
   /* 3. Send NEGATIVE speed command to move to physical end */
   int32_t negativeSpeed = -100;
-  SDO_Write(&hcan1, STEER_NODE, kxObjCommandDrive, &negativeSpeed);
+  SDO_Write(&hcan1, STEER_NODE, kxObjCommandDrive, (uint8_t *)&negativeSpeed);
 
   /* 4. Poll alarm register until value == 20 (physical resistance alarm)
    *    Timeout after ALARM_TIMEOUT_MS to avoid infinite loop */

@@ -18,6 +18,7 @@ extern "C" {
 /* Exported functions prototypes ---------------------------------------------*/
 void initVCU(void);
 void initTelems(void);
+void VCU_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc);
 
 #ifdef __cplusplus
 }
