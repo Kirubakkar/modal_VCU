@@ -11,30 +11,39 @@
 #include <string.h>
 
 /* Private variables ---------------------------------------------------------*/
+static osSemaphoreId_t sdoRxSemaphore = NULL;
+static volatile uint8_t sdoRxResponseData[8] = {0};
+static volatile uint32_t sdoRxExpectedCobId = 0;
+static volatile uint8_t sdoRxReceived = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 
 /* Exported functions --------------------------------------------------------*/
 
 /**
+ * @brief  Initialize CANopen SDO layer.
+ */
+void SDO_Init(void) {
+  sdoRxSemaphore = osSemaphoreNew(1, 0, NULL);
+}
+
+/**
+ * @brief  Process a received CAN frame for SDO responses.
+ *         Call this from the CAN RX ISR callback.
+ */
+void SDO_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc) {
+  /* Check if this is the SDO response we're waiting for */
+  if (stdId == sdoRxExpectedCobId && sdoRxReceived == 0) {
+    memcpy((void *)sdoRxResponseData, data, 8);
+    sdoRxReceived = 1;
+    if (sdoRxSemaphore != NULL) {
+      osSemaphoreRelease(sdoRxSemaphore);
+    }
+  }
+}
+
+/**
  * @brief  Perform a CANopen SDO expedited write (download) to a remote node.
- *
- *         Sends an SDO Download Initiate request and waits for the server
- *         response (confirmation or abort).
- *
- *         CANopen SDO Write frame (8 bytes):
- *         Byte 0:   Command specifier (depends on data length)
- *         Byte 1-2: Index (little-endian)
- *         Byte 3:   Sub-index
- *         Byte 4-7: Data (little-endian, zero-padded)
- *
- * @param  hcan      Pointer to CAN handle (e.g. &hcan1)
- * @param  nodeId    Target CANopen node ID (1-127)
- * @param  index     Object Dictionary index (16-bit)
- * @param  subIndex  Object Dictionary sub-index (8-bit)
- * @param  data      Pointer to data bytes to write
- * @param  dataLen   Number of data bytes (1-4 for expedited transfer)
- * @retval SDO_Status_t  SDO_OK on success, error code otherwise
  */
 SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
                        uint8_t subIndex, uint8_t dataLen, uint8_t *data) {
@@ -44,6 +53,8 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
   if (nodeId == 0 || nodeId > 127)
     return SDO_ERR_PARAM;
   if (dataLen == 0 || dataLen > 4)
+    return SDO_ERR_PARAM;
+  if (sdoRxSemaphore == NULL)
     return SDO_ERR_PARAM;
 
   /* --- Build the SDO command byte --- */
@@ -86,21 +97,119 @@ SDO_Status_t SDO_Write(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
   txHeader.DLC = 8; /* SDO frames are always 8 bytes */
   txHeader.TransmitGlobalTime = DISABLE;
 
-  /* --- Transmit the SDO request --- */
-  uint32_t txMailbox;
-  if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0)
-    return SDO_ERR_TX_FAIL;
+  /* --- Retry loop: up to SDO_WRITE_RETRIES attempts --- */
+  for (uint8_t attempt = 0; attempt < SDO_WRITE_RETRIES; attempt++) {
+    /* Prepare to receive confirmation */
+    sdoRxExpectedCobId = SDO_RX_COB_ID_BASE + nodeId; /* 0x580 + Node-ID */
+    sdoRxReceived = 0;
 
-  if (HAL_CAN_AddTxMessage(hcan, &txHeader, txPayload, &txMailbox) != HAL_OK)
-    return SDO_ERR_TX_FAIL;
+    /* Drain any stale semaphore tokens */
+    while (osSemaphoreAcquire(sdoRxSemaphore, 0) == osOK) {}
 
-  /* --- Wait for SDO response from server (0x580 + Node-ID) --- */
-  /* TODO: Implement RX polling or callback-based response handling.
-   *       For now, this function only transmits the SDO request.
-   *       You can add response waiting logic here later, e.g.:
-   *       - Poll HAL_CAN_GetRxMessage() with a timeout
-   *       - Or use RX FIFO interrupt + a FreeRTOS queue/semaphore
-   */
+    /* Transmit */
+    uint32_t txMailbox;
+    if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0)
+      return SDO_ERR_TX_FAIL;
 
-  return SDO_OK;
+    if (HAL_CAN_AddTxMessage(hcan, &txHeader, txPayload, &txMailbox) != HAL_OK)
+      return SDO_ERR_TX_FAIL;
+
+    /* Wait for server confirmation (0x60) or abort (0x80) */
+    osStatus_t semStatus = osSemaphoreAcquire(sdoRxSemaphore, SDO_TIMEOUT_MS);
+    if (semStatus != osOK)
+      continue; /* Timeout - retry */
+
+    /* Check response */
+    uint8_t cmdByte = sdoRxResponseData[0];
+
+    /* Abort? */
+    if ((cmdByte & 0x80) == 0x80)
+      return SDO_ERR_ABORT;
+
+    /* Success (0x60 = Download Initiate Response) */
+    return SDO_OK;
+  }
+
+  /* All retries exhausted */
+  return SDO_ERR_TIMEOUT;
+}
+
+/**
+ * @brief  Perform a CANopen SDO expedited read (upload) from a remote node.
+ *
+ *         SDO Upload Initiate Request (8 bytes):
+ *         Byte 0:   0x40 (Upload Initiate, ccs=2)
+ *         Byte 1-2: Index (little-endian)
+ *         Byte 3:   Sub-index
+ *         Byte 4-7: Reserved (0x00)
+ *
+ *         Waits for server response on 0x580 + nodeId using a semaphore.
+ */
+SDO_Status_t SDO_Read(CAN_HandleTypeDef *hcan, uint8_t nodeId, uint16_t index,
+                      uint8_t subIndex, uint8_t dataLen, uint8_t *data) {
+  /* --- Parameter validation --- */
+  if (hcan == NULL || data == NULL)
+    return SDO_ERR_PARAM;
+  if (nodeId == 0 || nodeId > 127)
+    return SDO_ERR_PARAM;
+  if (dataLen == 0 || dataLen > 4)
+    return SDO_ERR_PARAM;
+  if (sdoRxSemaphore == NULL)
+    return SDO_ERR_PARAM;
+
+  /* --- Build the 8-byte SDO Upload Initiate request --- */
+  uint8_t txPayload[8] = {0};
+  txPayload[0] = SDO_CCS_UPLOAD_INITIATE; /* 0x40 */
+  txPayload[1] = (uint8_t)(index & 0xFF);
+  txPayload[2] = (uint8_t)((index >> 8) & 0xFF);
+  txPayload[3] = subIndex;
+
+  /* --- Configure CAN TX header --- */
+  CAN_TxHeaderTypeDef txHeader;
+  txHeader.StdId = SDO_TX_COB_ID_BASE + nodeId;
+  txHeader.ExtId = 0;
+  txHeader.IDE = CAN_ID_STD;
+  txHeader.RTR = CAN_RTR_DATA;
+  txHeader.DLC = 8;
+  txHeader.TransmitGlobalTime = DISABLE;
+
+  /* --- Retry loop: up to SDO_READ_RETRIES attempts --- */
+  for (uint8_t attempt = 0; attempt < SDO_READ_RETRIES; attempt++) {
+    /* Prepare to receive */
+    sdoRxExpectedCobId = SDO_RX_COB_ID_BASE + nodeId; /* 0x580 + Node-ID */
+    sdoRxReceived = 0;
+
+    /* Drain any stale semaphore tokens */
+    while (osSemaphoreAcquire(sdoRxSemaphore, 0) == osOK) {}
+
+    /* Transmit */
+    uint32_t txMailbox;
+    if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0)
+      return SDO_ERR_TX_FAIL;
+
+    if (HAL_CAN_AddTxMessage(hcan, &txHeader, txPayload, &txMailbox) != HAL_OK)
+      return SDO_ERR_TX_FAIL;
+
+    /* Wait for response with timeout */
+    osStatus_t semStatus = osSemaphoreAcquire(sdoRxSemaphore, SDO_TIMEOUT_MS);
+    if (semStatus != osOK)
+      continue; /* Timeout - retry */
+
+    /* Check response */
+    uint8_t cmdByte = sdoRxResponseData[0];
+
+    /* Abort? */
+    if ((cmdByte & 0x80) == 0x80)
+      return SDO_ERR_ABORT;
+
+    /* Copy data bytes 4-7 from response */
+    for (uint8_t i = 0; i < dataLen; i++) {
+      data[i] = sdoRxResponseData[4 + i];
+    }
+
+    return SDO_OK;
+  }
+
+  /* All retries exhausted */
+  return SDO_ERR_TIMEOUT;
 }

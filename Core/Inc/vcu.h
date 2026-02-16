@@ -17,6 +17,7 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void initVCU(void);
+void initTelems(void);
 
 #ifdef __cplusplus
 }

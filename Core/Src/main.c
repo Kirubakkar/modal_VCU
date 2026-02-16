@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "vcu.h"
+#include "canOpen.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -157,12 +158,13 @@ int main(void)
   can_tx_header.DLC = 6;
   can_tx_header.TransmitGlobalTime = DISABLE;
 
-  /* Initialize VCU - send initial SDO commands */
-  initVCU();
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
+
+  /* Initialize CANopen SDO layer (semaphore for SDO_Read) */
+  SDO_Init();
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -496,7 +498,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 /**
-  * @brief  CAN RX FIFO0 message pending callback (test: capture ID 0x201)
+  * @brief  CAN RX FIFO0 message pending callback.
+  *         Dispatches to SDO layer and test RX handler.
   */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
@@ -505,17 +508,23 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
   if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
   {
-    if (rxHeader.IDE == CAN_ID_STD && rxHeader.StdId == TEST_CAN_RX_ID)
+    if (rxHeader.IDE == CAN_ID_STD)
     {
-      for (uint8_t i = 0; i < rxHeader.DLC; i++)
-      {
-        testRxData[i] = rxData[i];
-      }
-      testRxDlc = rxHeader.DLC;
-      testRxNewFlag = 1;
+      /* Forward to CANopen SDO layer for response processing */
+      SDO_ProcessRxMessage(rxHeader.StdId, rxData, rxHeader.DLC);
 
-      /* Visual feedback: toggle orange LED on RX */
-      HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+      /* Test: capture ID 0x201 */
+      if (rxHeader.StdId == TEST_CAN_RX_ID)
+      {
+        for (uint8_t i = 0; i < rxHeader.DLC; i++)
+        {
+          testRxData[i] = rxData[i];
+        }
+        testRxDlc = rxHeader.DLC;
+        testRxNewFlag = 1;
+
+        HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+      }
     }
   }
 }
@@ -533,6 +542,10 @@ void StartDefaultTask(void *argument)
   /* init code for USB_HOST */
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
+
+  /* Initialize VCU (steering homing) - must run in task context */
+  initVCU();
+
   /* Infinite loop */
   for(;;)
   {

@@ -20,7 +20,7 @@ extern "C" {
 #define kxObjCommandDrive (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)1
 #define kxObjReadAlarm (uint16_t)0x260E, (uint8_t)0x00, (uint8_t)1
 #define kxObjPositionActualValue (uint16_t)0x6064, (uint8_t)0x00, (uint8_t)4
-#define kxObjCommandDrive (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)1
+#define kxObjCommandDrive (uint16_t)0x60FF, (uint8_t)0x00, (uint8_t)4
 
 /* Drive mode constants ------------------------------------------------------*/
 static const uint8_t kucModeVelocity = 3;
