@@ -135,10 +135,10 @@ static const float kfMotorControllerSlowOverVoltage = 118.0420f;
 static const float kfMotorControllerSlowUnderVoltage = 80.5420f;
 
 /* Battery foldback */
-static const float kfMotorControllerHighBatteryFoldbackEndVoltage = 112.0f;
-static const float kfMotorControllerHighBatteryFoldbackStartingVoltage = 110.0f;
-static const float kfMotorControllerLowBatteryFoldbackStartingVoltage = 88.0f;
-static const float kfMotorControllerLowBatteryFoldbackEndVoltage = 84.0f;
+static const float kfMotorControllerHighBatteryFoldbackEndVoltage = 117.0f;
+static const float kfMotorControllerHighBatteryFoldbackStartingVoltage = 112.0f;
+static const float kfMotorControllerLowBatteryFoldbackStartingVoltage = 80.0f;
+static const float kfMotorControllerLowBatteryFoldbackEndVoltage = 71.0f;
 static const float kfMotorControllerColdBatteryFoldbackStartingTemperature =
     3.0f;
 static const float kfMotorControllerColdBatteryFoldbackEndingTemperature =

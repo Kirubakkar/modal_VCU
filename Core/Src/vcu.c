@@ -220,11 +220,12 @@ static void processDriveCommand(void) {
   float fRightMultiplier = -1.0f;
   float fLeftMultiplier = 1.0f;
 
-  speedCommand = fAccelPedal;
+  // speedCommand = fAccelPedal;
 
   switch (ucPrnd) {
   case DRIVE_PRND_PARK:
     fAccelPedal = 0.0f;
+    speedCommand = fAccelPedal;
     remoteState = 2.0f;
     speedRegulatorMode = 0.0f;
     break;
@@ -233,8 +234,11 @@ static void processDriveCommand(void) {
     if (fAccelPedal == 0.0f) {
       remoteState = 2.0f;
       speedRegulatorMode = 0.0f;
+      fAccelPedal = 0.0f;
+      speedCommand = fAccelPedal;
     } else {
       fAccelPedal = -1.0f * fAccelPedal;
+      speedCommand = fAccelPedal;
       remoteState = 2.0f;
       speedRegulatorMode = 1.0f;
     }
@@ -242,6 +246,7 @@ static void processDriveCommand(void) {
 
   case DRIVE_PRND_NEUTRAL:
     fAccelPedal = 0.0f;
+    speedCommand = fAccelPedal;
     remoteState = 1.0f;
     speedRegulatorMode = 0.0f;
     break;
@@ -250,9 +255,13 @@ static void processDriveCommand(void) {
     if (fAccelPedal == 0.0f) {
       remoteState = 2.0f;
       speedRegulatorMode = 0.0f;
+      fAccelPedal = 0.0f;
+      speedCommand = fAccelPedal;
     } else {
       remoteState = 2.0f;
       speedRegulatorMode = 1.0f;
+      fAccelPedal = vcuAped;
+      speedCommand = fAccelPedal;
     }
     break;
 
