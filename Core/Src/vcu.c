@@ -28,6 +28,7 @@ static osThreadId_t telems1000msTaskHandle;
 static volatile float vcuSteerAngle = 0.0f;
 static volatile float vcuAped = 0.0f;
 static volatile float vcuPrnd = 0.0f;
+static volatile float vcuBped = 0.0f;
 
 /* Drive command state */
 #define ASI_CAN_ID_OFFSET_STATE 0x1EE
@@ -42,6 +43,7 @@ static float throttleCmdFL = 0.0f;
 static float throttleCmdRR = 0.0f;
 static float throttleCmdRL = 0.0f;
 static float speedCommand = 0.0f;
+static float regenTorque = 0.0f;
 
 static const osThreadAttr_t telems100msTask_attributes = {
     .name = "vTaskTelems100ms",
@@ -92,6 +94,7 @@ void VCU_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc) {
     vcuSteerAngle = canExtract(data, &kxCanSignalSteerAng);
     vcuAped = canExtract(data, &kxCanSignalAped);
     vcuPrnd = canExtract(data, &kxCanSignalPrnd);
+    vcuBped = canExtract(data, &kxCanSignalBped);
   }
 }
 
@@ -175,6 +178,7 @@ static void sendAsiNodeCmd(uint8_t nodeId, float throttleCmd, float speedCmd) {
 
   canPack(stateData, &kxCanSignalAsiState, remoteState);
   canPack(stateData, &kxCanSignalAsiSpeedMode, speedRegulatorMode);
+  // canPack(stateData, &kxCanSignalAsiBrakingTorque, regenTorque);
 
   txHeader.StdId = nodeId + ASI_CAN_ID_OFFSET_STATE;
   txHeader.ExtId = 0;
@@ -184,6 +188,8 @@ static void sendAsiNodeCmd(uint8_t nodeId, float throttleCmd, float speedCmd) {
   txHeader.TransmitGlobalTime = DISABLE;
 
   CAN_TransmitRetry(&hcan1, &txHeader, stateData);
+  uint16_t val16 = (uint16_t)regenTorque;
+  SDO_Write(&hcan1, nodeId, xODEntryMaximumBrakingTorque, (uint8_t *)&val16);
 
   /* --- Command message (DLC 8) --- */
   uint8_t cmdData[8] = {0};
@@ -216,11 +222,12 @@ static void sendAsiCmd(void) {
  */
 static void processDriveCommand(void) {
   float fAccelPedal = vcuAped;
+  float fBrakePedal = vcuBped;
   uint8_t ucPrnd = (uint8_t)vcuPrnd;
   float fRightMultiplier = -1.0f;
   float fLeftMultiplier = 1.0f;
 
-  // speedCommand = fAccelPedal;
+  regenTorque = fBrakePedal;
 
   switch (ucPrnd) {
   case DRIVE_PRND_PARK:
@@ -231,7 +238,7 @@ static void processDriveCommand(void) {
     break;
 
   case DRIVE_PRND_REVERSE:
-    if (fAccelPedal == 0.0f) {
+    if (fBrakePedal != 0.0f) {
       remoteState = 2.0f;
       speedRegulatorMode = 0.0f;
       fAccelPedal = 0.0f;
@@ -240,7 +247,7 @@ static void processDriveCommand(void) {
       fAccelPedal = -1.0f * fAccelPedal;
       speedCommand = fAccelPedal;
       remoteState = 2.0f;
-      speedRegulatorMode = 1.0f;
+      speedRegulatorMode = 2.0f;
     }
     break;
 
@@ -252,14 +259,14 @@ static void processDriveCommand(void) {
     break;
 
   case DRIVE_PRND_DRIVE:
-    if (fAccelPedal == 0.0f) {
+    if (fBrakePedal != 0.0f) {
       remoteState = 2.0f;
       speedRegulatorMode = 0.0f;
       fAccelPedal = 0.0f;
       speedCommand = fAccelPedal;
     } else {
       remoteState = 2.0f;
-      speedRegulatorMode = 1.0f;
+      speedRegulatorMode = 2.0f;
       fAccelPedal = vcuAped;
       speedCommand = fAccelPedal;
     }
