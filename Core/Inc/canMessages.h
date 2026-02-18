@@ -372,6 +372,14 @@ static const CanSignal_TypeDef kxCanSignalFaultFrameCommBms = {1, 0, 22, 1,
                                                                1, 0, 0};
 static const CanSignal_TypeDef kxCanSignalFaultFrameCommRc = {1, 0, 23, 1,
                                                               1, 0, 0};
+static const CanSignal_TypeDef kxCanSignalFaultFrameCommAsiFR = {1, 0, 24, 1,
+                                                                  1, 0, 0};
+static const CanSignal_TypeDef kxCanSignalFaultFrameCommAsiFL = {1, 0, 25, 1,
+                                                                  1, 0, 0};
+static const CanSignal_TypeDef kxCanSignalFaultFrameCommAsiRR = {1, 0, 26, 1,
+                                                                  1, 0, 0};
+static const CanSignal_TypeDef kxCanSignalFaultFrameCommAsiRL = {1, 0, 27, 1,
+                                                                  1, 0, 0};
 
 /* --- CAN_ID_FAULT_AXLE --- */
 static const CanSignal_TypeDef kxCanSignalErrSteerInitF = {1, 0, 0, 1, 1, 0, 0};

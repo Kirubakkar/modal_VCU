@@ -7,11 +7,20 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "asi.h"
+#include "canMessages.h"
 #include "canOpen.h"
+#include "canSignal.h"
 #include "cmsis_os.h"
 
 /* External variables --------------------------------------------------------*/
 extern CAN_HandleTypeDef hcan1;
+
+/* Exported variables --------------------------------------------------------*/
+AsiHeartbeat_t asiHeartbeat[ASI_NODE_COUNT] = {0};
+
+/* Private variables ---------------------------------------------------------*/
+static const uint8_t asiNodeIds[ASI_NODE_COUNT] = {
+    ASI_NODE_FR, ASI_NODE_FL, ASI_NODE_RR, ASI_NODE_RL};
 
 /* Exported functions --------------------------------------------------------*/
 
@@ -124,4 +133,57 @@ void asiNodeInit(uint8_t nodeId) {
 
   val16 = (uint16_t)kfNegativeBrakingTorqueRamp;
   SDO_Write(&hcan1, nodeId, xODEntryNegativeBrakingTorqueRamp, (uint8_t *)&val16);
+}
+
+/**
+ * @brief  Process ASI heartbeat message (0x238-0x23B).
+ *         Called from ISR context.
+ * @param  stdId  Standard CAN ID
+ * @param  data   Pointer to 8-byte CAN data
+ */
+void asiProcessHeartbeat(uint32_t stdId, uint8_t *data) {
+  /* Determine which node this heartbeat belongs to */
+  for (uint8_t i = 0; i < ASI_NODE_COUNT; i++) {
+    if (stdId == (uint32_t)(asiNodeIds[i] + ASI_CAN_ID_OFFSET_HEARTBEAT)) {
+      asiHeartbeat[i].usFaults1 =
+          (uint16_t)canExtract(data, &kxCanSignalAsiFaults1);
+      asiHeartbeat[i].usFaults2 =
+          (uint16_t)canExtract(data, &kxCanSignalAsiFaults2);
+      asiHeartbeat[i].sControllerTemp =
+          (int16_t)canExtract(data, &kxCanSignalAsiControllerTemp);
+      asiHeartbeat[i].sDspCoreTemp =
+          (int16_t)canExtract(data, &kxCanSignalAsiDspTemp);
+      asiHeartbeat[i].ulLastHeartbeatTick = osKernelGetTickCount();
+      asiHeartbeat[i].ucCommLoss = 0;
+      return;
+    }
+  }
+}
+
+/**
+ * @brief  Check all ASI nodes for heartbeat timeout (CommLoss).
+ *         Must be called periodically from a FreeRTOS task context.
+ */
+void asiCheckCommLoss(void) {
+  uint32_t now = osKernelGetTickCount();
+
+  for (uint8_t i = 0; i < ASI_NODE_COUNT; i++) {
+    uint32_t elapsed = now - asiHeartbeat[i].ulLastHeartbeatTick;
+    if (elapsed > ASI_HEARTBEAT_TIMEOUT_MS) {
+      asiHeartbeat[i].ucCommLoss = 1;
+    }
+  }
+}
+
+/**
+ * @brief  Check if any ASI node has CommLoss.
+ * @retval 1 if at least one node has CommLoss, 0 if all nodes are OK.
+ */
+uint8_t asiIsAnyCommLoss(void) {
+  for (uint8_t i = 0; i < ASI_NODE_COUNT; i++) {
+    if (asiHeartbeat[i].ucCommLoss) {
+      return 1;
+    }
+  }
+  return 0;
 }

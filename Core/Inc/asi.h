@@ -24,6 +24,27 @@ extern "C" {
 #define ASI_NODE_RL 0x2D
 
 /******************************************************************************
+ * CAN ID Offsets
+ *****************************************************************************/
+#define ASI_CAN_ID_OFFSET_STATE     0x1EE /* nodeId + 0x1EE = state TX */
+#define ASI_CAN_ID_OFFSET_DRIVE     0x1F2 /* nodeId + 0x1F2 = command TX */
+#define ASI_CAN_ID_OFFSET_HEARTBEAT 0x20E /* nodeId + 0x20E = heartbeat RX */
+
+#define ASI_HEARTBEAT_TIMEOUT_MS    500 /* CommLoss if no heartbeat within this */
+
+/******************************************************************************
+ * Per-node heartbeat data
+ *****************************************************************************/
+typedef struct {
+  volatile uint16_t usFaults1;
+  volatile uint16_t usFaults2;
+  volatile int16_t sControllerTemp;
+  volatile int16_t sDspCoreTemp;
+  volatile uint32_t ulLastHeartbeatTick;
+  volatile uint8_t ucCommLoss;
+} AsiHeartbeat_t;
+
+/******************************************************************************
  * CANopen Object Dictionary Entries
  *
  * Macro format: index, subIndex, dataLen, scalar
@@ -217,10 +238,28 @@ static const float kfNegativeBrakingTorqueRamp = 10.0f;
 #define ASI_FAULT2_SPARE2 0x8000
 
 /******************************************************************************
+ * Node count & index helpers
+ *****************************************************************************/
+#define ASI_NODE_COUNT 4
+
+#define ASI_NODE_INDEX_FR 0
+#define ASI_NODE_INDEX_FL 1
+#define ASI_NODE_INDEX_RR 2
+#define ASI_NODE_INDEX_RL 3
+
+/******************************************************************************
+ * Exported Variables
+ *****************************************************************************/
+extern AsiHeartbeat_t asiHeartbeat[ASI_NODE_COUNT];
+
+/******************************************************************************
  * Exported Functions
  *****************************************************************************/
 void asiInit(void);
 void asiNodeInit(uint8_t nodeId);
+void asiProcessHeartbeat(uint32_t stdId, uint8_t *data);
+void asiCheckCommLoss(void);
+uint8_t asiIsAnyCommLoss(void);
 
 #ifdef __cplusplus
 }

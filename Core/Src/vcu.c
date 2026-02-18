@@ -31,8 +31,6 @@ static volatile float vcuPrnd = 0.0f;
 static volatile float vcuBped = 0.0f;
 
 /* Drive command state */
-#define ASI_CAN_ID_OFFSET_STATE 0x1EE
-#define ASI_CAN_ID_OFFSET_DRIVE 0x1F2
 #define ASI_MAX_MOTOR_CURRENT 100.0f
 #define ASI_MAX_REGEN_CURRENT 100.0f
 
@@ -64,6 +62,7 @@ static void sendDriveData(void);
 static void processDriveCommand(void);
 static void sendAsiNodeCmd(uint8_t nodeId, float throttleCmd, float speedCmd);
 static void sendAsiCmd(void);
+static void sendFaultReport(void);
 
 /* Exported functions --------------------------------------------------------*/
 
@@ -91,11 +90,20 @@ void VCU_ProcessRxMessage(uint32_t stdId, uint8_t *data, uint8_t dlc) {
   (void)dlc;
 
   if (stdId == CAN_ID_CMD_DRIVE) {
-    vcuSteerAngle = canExtract(data, &kxCanSignalSteerAng);
+    float rawAngle = canExtract(data, &kxCanSignalSteerAng);
+    if (rawAngle > 35.0f) {
+      rawAngle = 35.0f;
+    } else if (rawAngle < -35.0f) {
+      rawAngle = -35.0f;
+    }
+    vcuSteerAngle = rawAngle;
     vcuAped = canExtract(data, &kxCanSignalAped);
     vcuPrnd = canExtract(data, &kxCanSignalPrnd);
     vcuBped = canExtract(data, &kxCanSignalBped);
   }
+
+  /* ASI heartbeat messages (0x238-0x23B) */
+  asiProcessHeartbeat(stdId, data);
 }
 
 /**
@@ -133,7 +141,9 @@ static void vTaskTelems1000ms(void *argument) {
   (void)argument;
 
   for (;;) {
+    asiCheckCommLoss();
     sendDriveData();
+    sendFaultReport();
 
     osDelay(1000);
   }
@@ -213,6 +223,35 @@ static void sendAsiCmd(void) {
   sendAsiNodeCmd(ASI_NODE_FL, throttleCmdFL, speedCommand);
   sendAsiNodeCmd(ASI_NODE_RR, throttleCmdRR, speedCommand);
   sendAsiNodeCmd(ASI_NODE_RL, throttleCmdRL, speedCommand);
+}
+
+/**
+ * @brief  Send fault report on CAN ID 0x200 (FAULT_GEN).
+ *         Packs per-node ASI CommLoss flags into bits 24-27.
+ */
+static void sendFaultReport(void) {
+  uint8_t txBuf[8] = {0};
+
+  /* Pack ASI CommLoss flags */
+  canPack(txBuf, &kxCanSignalFaultFrameCommAsiFR,
+          (float)asiHeartbeat[ASI_NODE_INDEX_FR].ucCommLoss);
+  canPack(txBuf, &kxCanSignalFaultFrameCommAsiFL,
+          (float)asiHeartbeat[ASI_NODE_INDEX_FL].ucCommLoss);
+  canPack(txBuf, &kxCanSignalFaultFrameCommAsiRR,
+          (float)asiHeartbeat[ASI_NODE_INDEX_RR].ucCommLoss);
+  canPack(txBuf, &kxCanSignalFaultFrameCommAsiRL,
+          (float)asiHeartbeat[ASI_NODE_INDEX_RL].ucCommLoss);
+
+  CAN_TxHeaderTypeDef txHeader;
+
+  txHeader.StdId = CAN_ID_FAULT_GEN;
+  txHeader.ExtId = 0;
+  txHeader.IDE = CAN_ID_STD;
+  txHeader.RTR = CAN_RTR_DATA;
+  txHeader.DLC = CAN_DLC_FAULT_GEN;
+  txHeader.TransmitGlobalTime = DISABLE;
+
+  CAN_TransmitRetry(&hcan1, &txHeader, txBuf);
 }
 
 /**
